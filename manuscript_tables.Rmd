@@ -1,0 +1,677 @@
+---
+title: "Trends in blood pressure among blood donors"
+output: 
+  flexdashboard::flex_dashboard:
+    theme:
+      version: 5
+      bg: "#2e2d2d"
+      fg: "#FFFFFF"
+      primary: "#333131"
+      base_font:
+        google: Inter Tight
+      heading_font:
+        google: Inter Tight
+      code_font:
+        google: 
+          family: Inter Tight #JetBrains Mono
+          local: true
+    orientation: columns
+    vertical_layout: fill
+ # storyboard: true
+    logo: "https://www.redcross.org/content/dam/redcross/imported-images/redcross-logo.png.img.png"
+  lazyrmd:  
+---
+
+<style>
+      .dataTables_scrollBody {
+        max-height: 100% !important; /* Adjust as needed */
+      }
+      .chart-stage-flex {
+        overflow: auto !important; /* Allows scrolling within the table container */
+      }
+</style>
+<style type="text/css">
+
+/* Reduce margin and padding for chart titles */
+.chart-title {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* Reduce padding within the overall chart container */
+.flex-cell {
+  padding: 5px;
+}
+
+/* Reduce space above the chart title */
+.chart-title {
+  margin-top: 0px; 
+  padding-top: 0px;
+}
+
+/* Reduce space inside the chart box */
+.flex-cell {
+  padding: 2px; /* Adjust this value as needed */
+}
+
+.value-box {
+    height: 91px;
+    margin: 2px;
+    padding: 2px;
+    box-shadow: 8px 7px 4px rgba(56, 29, 29, 0.5);
+    margin-bottom: 2px;
+    margin-top: 2px;
+    }
+/* Decrease space between value and caption */
+.value-box .value {
+  line-height: 1;      /* Adjust the line height */
+  margin-bottom: -3px; /* Move the value closer to the caption */
+  font-size: 24px;
+}
+
+.value-box .caption {
+  margin-top: 0;
+  margin-bottom: 0;/* Remove the top margin from the caption */
+}    
+    
+.value-box .fa {
+      font-size: 8px; /* Adjust as desired */
+      margin-top: 0;
+      margin-bottom: -3;
+    }    
+    
+.panel-body {
+  padding: 0px !important; /* Reduce internal padding of panels */
+}
+.flex-panel {
+  margin-bottom: 0px !important; /* Reduce vertical margin between panels */
+}
+.chart-container { /* Replace with actual class/ID if needed */
+        margin-bottom: 0px; /* Adjust as desired */
+      }
+
+      
+.graph-container {
+  /* Use a linear gradient to create a shaded effect */
+  background: linear-gradient(
+    to bottom,
+    rgba(28, 26, 26, 0.2), /* Light green, transparent */
+    rgba(74, 72, 73, 0.2)  /* Light blue, transparent */
+  );
+  padding: 20px; /* Add padding for visual separation */
+  border-radius: 8px;
+}      
+
+.value-box .icon {
+  font-size:6px;
+}
+</style>
+
+<style>
+.crosstalk-input-slider, .irs-grid-text{
+  color: white;
+  font-family: Inter Tight;
+  font-size:13px;
+}
+.irs-bar {
+  background-color:black; 
+}
+</style>
+
+
+```{css, as-is, echo=FALSE}
+storyboard-nav sbframelist ul li {
+    height: auto;
+}
+
+div {padding: 1 !important;}
+a {
+  color: lightblue; /* Change 'green' to your desired color or hex code */
+}
+
+.value-box {
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.active{
+      font-size:12px; /* Adjust as desired */
+    }    
+    
+.container-fluid {
+  max-width: 1000px; /* Adjust this value to your desired max-width */
+}
+
+img {
+  max-width:100%;
+  height: auto;
+}
+
+body {
+  background: linear-gradient(to right, #636466, #2c2e30
+  );
+}
+
+tags$head( 
+    tags$style(HTML(".fa{font-size: 6px;}"))
+  )
+  
+.custom-background {
+  background-color: #F0F8FF; /* AliceBlue */
+}  
+
+div.blue pre { background-color:lightblue; }
+div.blue pre.r { background-color:blue; }
+
+.my_bg { background-color: rgb(245, 247, 250); color: white; border: 0px solid white; }
+```
+
+
+```{r libraries, include=FALSE}
+library(haven)
+library(dplyr)
+library(gtsummary)
+library(gt)
+library(ggplot2)
+library(freqtables)
+library(huxtable)
+library(lazyrmd)
+library(flexdashboard)
+library(crosstalk)
+library(readr)
+library(lubridate)
+library(ggpubr)
+library(RColorBrewer)
+library(leaflet)
+library(knitr)
+library(DT)
+library(plotly)
+library(htmltools)
+library(leaflegend)
+library(ggfx)
+library(ggiraph)
+library(mapview)
+library(tigris)
+library(sf)
+library(flextable)
+library(downloadthis)
+library(huxtable)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+conflicts_prefer(plyr::mutate)
+
+# data with highest BP status for all years ; for tables 1 and 2
+setwd("E:\\ARC\\Projects\\HTN\\HTN2015data")
+# htn <- read_sas("E:\\ARC\\Projects\\HTN\\HTN2015data\\htnmax1.sas7bdat") 
+# demo <- read_sas("E:\\ARC\\Projects\\HTN\\HTN2015data\\demo.sas7bdat") 
+htn_idlevel <- read_sas("E:\\ARC\\Projects\\HTN\\HTN2015data\\htnmax_idlevel_1.sas7bdat")
+htn_idlevel <- htn_idlevel %>% mutate(Stage = case_when(stage == "1_normal"~"normal",
+                                        stage == "2_elevated"~"elevated",
+                                        stage == "3_stage 1"~"stage 1",
+                                        stage == "4_stage 2"~"stage 2",  TRUE ~ NA)) |>
+                              mutate(HBP = case_when(Stage == "normal"~"normal",
+                                                     TRUE ~ "abnormal"))
+htn_idlevel$Stage <- factor(htn_idlevel$Stage, levels = c("normal", "elevated", "stage 1", "stage 2"))   
+htn_idlevel$HBP <- factor(htn_idlevel$HBP, levels = c("normal", "abnormal"))   
+htn_idlevel$ruca <- factor(htn_idlevel$ruca, levels = c("Metropolitan", "Micro-Metropolitan", "Small Town", "Rural"))
+htn_idlevel$race <- factor(htn_idlevel$race, levels = c("Black", "White", "Other"))
+htn_idlevel$yr <- as.character(htn_idlevel$yr)
+
+save(htn_idlevel, file="htn_idlevel.Rdata")
+```
+
+Column{data-width=75}
+-----------------------------------------------------------------------
+### Donors
+```{r, fig.mobile=TRUE, class.chunk = "graph-container"}
+tcount <- n_distinct(htn_idlevel$id)
+    valueBox(
+      value = shiny::tags$p(tcount, style = "font-size: 8px;"),
+      caption = "donors age 25 & above",
+      icon = tags$image('fa-users', style = "font-size: 18px;"),
+      color = "#4d4c4b"
+    )
+```
+
+### Donations
+```{r, fig.mobile=TRUE, class.chunk = "graph-container"}
+    valueBox(
+      value = shiny::tags$p(20849150, style = "font-size: 8px;"),
+      caption = "donations",
+      icon = tags$image('fa-users', style = "font-size: 18px;"),
+      color = "#4d4c4b"
+    )
+```
+
+### Females
+```{r, fig.mobile=TRUE, echo = FALSE}
+library("shiny")
+    fpercent <- htn_idlevel %>%
+                group_by(gender) %>% summarise(fcount=n()) %>%
+                mutate(fpercent = round(100*fcount/sum(fcount),digits = 1))
+    valueBox(
+          # paste0(fpercent[1,3], "%"),
+          value = shiny::tags$p(paste0(fpercent[1,3], "%")),
+          caption = 'females', 
+          icon = 'fa-person-dress',
+          color = "#C9A9A9"
+    )
+```
+
+### Males
+```{r, fig.mobile=TRUE, echo = FALSE}
+    fpercent <- htn_idlevel %>%
+                group_by(gender) %>% summarise(fcount=n()) %>%
+                mutate(fpercent = round(100*fcount/sum(fcount),digits = 1))
+    valueBox(
+          value = shiny::tags$p(paste0(fpercent[2,3], "%"), style = "font-size: 8px; font-face:bold"),
+          caption = 'males',
+          # style = "font-size: 200%;font-family: Helvetica",
+          icon = "fa-person",
+          color = "#C1C1E8"
+    )
+```
+
+
+### Stage 1 HTN
+```{r, fig.mobile=TRUE }
+stage1_ct <- htn_idlevel %>% filter(Stage == "stage 1") %>%  n_distinct()
+all_ct <- n_distinct(htn_idlevel$id)
+percent_st1 <- round(100*stage1_ct/all_ct, digits = 1)
+    valueBox(
+      paste0(percent_st1,"%"),
+      caption = 'Stage 1 HTN',
+      icon = 'fa-heart-circle-exclamation',
+      color = "#A40"
+    )
+```
+
+### Stage 2 HTN
+```{r, fig.mobile=TRUE }
+st2_ct <- htn_idlevel %>% filter(Stage == "stage 2") %>% n_distinct()
+all_ct <- n_distinct(htn_idlevel$id)
+percent_st2 <- round(100*st2_ct/all_ct, digits = 1)
+    valueBox(
+      paste0(percent_st2,"%"),
+      caption = 'Stage 2 HTN',
+      icon = 'fa-heart-circle-exclamation',
+      color = "#C40000"
+    )
+```
+
+
+Column {data-width=650 .tabset}
+-----------------------------------------------------------------------
+### Table 1
+```{r}
+table1 <- htn_idlevel |>
+  select(race, gender, ages, ruca) |>
+  tbl_strata(
+    strata = c(race),
+    .tbl_fun =
+      ~ .x |>
+      tbl_summary(by = gender, 
+                  missing = "no", 
+                  percent = "column", 
+                  label = list(ruca = "RUCA", ages = "Age Group"),
+                  statistic = list(
+                                all_categorical() ~ "{n}/{N} ({p}%)",
+                                all_continuous() ~ "{mean} ({ci})"
+                                  ),
+                  digits = list(all_continuous() ~ c(1, 1), all_categorical() ~ c(1,1))
+                  ) |>
+       add_ci(
+        method = list(all_continuous() ~ "t.test", all_categorical() ~ "wilson"),
+        include = everything(),
+        statistic = list(all_continuous() ~ "{conf.low}, {conf.high}", 
+                         all_categorical() ~ "{conf.low}%, {conf.high}%"), 
+        conf.level = 0.95,
+        style_fun = list(all_continuous() ~ label_style_sigfig(),
+                       all_categorical() ~ label_style_sigfig(scale = 100,digits = 3) #
+                         ),
+        pattern = "{stat} ({ci})") |>
+      modify_header(all_stat_cols() ~ "**{level}**  \nN = {n} ({style_percent(p)}%)") |> 
+      # add_n() |>
+      modify_spanning_header(all_stat_cols() ~ "**Race & Gender**") |>
+      bold_labels() 
+  ) 
+table1
+table1_gt <- table1 |> as_gt() 
+table1_gt %>% gt::gtsave(filename = "E:/ARC/Projects/HTN/HTN2015data/donor_htn/table1.docx")
+
+# Download button (.docx)
+download_file(
+  path = "E:/ARC/Projects/HTN/HTN2015data/donor_htn/table1.docx",
+  output_name = "Table 1" ,
+  button_label = "download table (Table 1.docx)",
+  button_type = "primary",
+  has_icon = TRUE,
+  self_contained = TRUE
+)
+
+# Download button (.xlsx)
+as_hux_xlsx(table1, file = "E:/ARC/Projects/HTN/HTN2015data/donor_htn/table1.xlsx")
+download_file(
+  path = "table1.xlsx",
+  output_name = "Table 1" ,
+  button_label = "download table (Table 1.xlsx)",
+  button_type = "primary",
+  has_icon = TRUE,
+  self_contained = TRUE
+)
+
+table1
+```
+
+> 
+
+### Table 2
+```{r, fig.mobile=TRUE , fig.width=7.5}
+table2 <- htn_idlevel |>
+  select(ruca, ages, Stage) |>
+  tbl_strata(
+    strata = ruca,
+    .tbl_fun =
+      ~ .x |>
+      tbl_summary(by = ages, 
+                  include = c(Stage), 
+                  missing = "no", 
+                  percent = "column", 
+                  label = list(ruca = "RUCA", agegroup = "Age Group"),
+                  statistic = list(
+                                all_categorical() ~ "{n}/{N} ({p}%)",
+                                all_continuous() ~ "{mean} ({ci})"
+                                  ),
+                  digits = list(all_continuous() ~ c(1, 1), all_categorical() ~ c(2,2))
+                  ) |>
+      add_ci(
+        method = list(all_continuous() ~ "t.test", all_categorical() ~ "wilson"),
+        include = everything(),
+        statistic = list(all_continuous() ~ "{conf.low}, {conf.high}", 
+                         all_categorical() ~ "{conf.low}%, {conf.high}%"), 
+        conf.level = 0.95,
+        style_fun = list(all_continuous() ~ label_style_sigfig(),
+                       all_categorical() ~ label_style_sigfig(scale = 100,digits = 4) #
+                         ),
+        pattern = "{stat} ({ci})") |>
+      modify_header(all_stat_cols() ~ "**{level}**  \nN = {n} ({style_percent(p)}%)") |> #add_n() |> 
+      # modify_spanning_header(all_stat_cols() ~ "**RUCA & Age Group**") |>
+      bold_labels() 
+  ) 
+
+gt_obj_1 <- table2 %>% as_gt()
+# gt_obj_2 <- table3 %>% as_gt()
+# table2 <- gt::gt_group(gt_obj_1, gt_obj_2)
+gt_obj_1 %>% gt::gtsave(filename = "table2.docx")
+download_file(
+  path = "E:/ARC/Projects/HTN/HTN2015data/donor_htn/table2.docx",
+  output_name = "Table 2" ,
+  button_label = "download (Table 2 Word)",
+  button_type = "primary",
+  has_icon = TRUE,
+  self_contained = TRUE
+)
+
+# table2 %>% as_gt() %>% gt::gtsave(filename = "table2.docx")
+# This will save the table as an Excel file with the specified name
+as_hux_xlsx(table2, file = "E:/ARC/Projects/HTN/HTN2015data/donor_htn/table2.xlsx")
+# as_hux_xlsx(table2b, file = "E:/ARC/Projects/HTN/HTN2015data/donor_htn/table2b.xlsx")
+
+download_file(
+  path = "table2.xlsx",
+  output_name = "Table 2" ,
+  button_label = "download (Table 2 Excel)",
+  button_type = "primary",
+  has_icon = TRUE,
+  self_contained = TRUE
+)
+download_file(
+  path = "table2.xlsx",
+  output_name = "Table 2" ,
+  button_label = "download (Table 2 Excel)",
+  button_type = "primary",
+  has_icon = TRUE,
+  self_contained = TRUE
+)
+
+table2
+```
+
+
+### Table 3
+```{r, fig.mobile=TRUE , fig.width=7.5}
+table3 <- htn_idlevel |>
+  select(Stage, gender, race) |>
+  tbl_strata(
+    strata = race,
+    .tbl_fun =
+      ~ .x |>
+      tbl_summary(by = gender,  
+                  include = c(Stage), 
+                  missing = "no", 
+                  percent = "column", 
+                  label = list(race = "Race", gender = "Gender"),
+                  statistic = list(
+                                all_categorical() ~ "{n}/{N} ({p}%)",
+                                all_continuous() ~ "{mean} ({ci})"
+                                  ),
+                  digits = list(all_continuous() ~ c(1, 1), all_categorical() ~ c(2,2))
+                  ) |>
+      add_ci(
+        method = list(all_continuous() ~ "t.test", all_categorical() ~ "wilson"),
+        include = everything(),
+        statistic = list(all_continuous() ~ "{conf.low}, {conf.high}", 
+                         all_categorical() ~ "{conf.low}%, {conf.high}%"), 
+        conf.level = 0.95,
+        style_fun = list(all_continuous() ~ label_style_sigfig(),
+                       all_categorical() ~ label_style_sigfig(scale = 100,digits = 4) #
+                         ),
+        pattern = "{stat} ({ci})") |>
+      modify_header(all_stat_cols() ~ "**{level}**  \nN = {n} ({style_percent(p)}%)") |> #add_n() |> 
+      # modify_spanning_header(all_stat_cols() ~ "**Race & Gender**") |>
+      bold_labels() 
+  ) 
+
+# gt_obj_1 <- table2 %>% as_gt()
+gt_obj_3 <- table3 %>% as_gt()
+# table2 <- gt::gt_group(gt_obj_1, gt_obj_2) 
+gt_obj_3 %>% gt::gtsave(filename = "table3.docx")
+download_file(
+  path = "E:/ARC/Projects/HTN/HTN2015data/donor_htn/table3.docx",
+  output_name = "Table 3" ,
+  button_label = "download (Table 3 Word)",
+  button_type = "primary",
+  has_icon = TRUE,
+  self_contained = TRUE
+)
+
+# table2 %>% as_gt() %>% gt::gtsave(filename = "table2.docx")
+# This will save the table as an Excel file with the specified name
+as_hux_xlsx(table3, file = "E:/ARC/Projects/HTN/HTN2015data/donor_htn/table3.xlsx")
+
+download_file(
+  path = "table3.xlsx",
+  output_name = "Table 3" ,
+  button_label = "download (Table 3 Excel)",
+  button_type = "primary",
+  has_icon = TRUE,
+  self_contained = TRUE
+)
+
+table3
+```
+
+
+### Race 
+```{r, fig.mobile=TRUE , fig.width=7.5}
+# Race
+htn_idlevel %>% 
+  freq_table(race) %>% 
+  select(cat, n, n_total, percent, lcl, ucl) %>% 
+  mutate(percent = round(percent, digits = 2),
+         lcl = round(lcl, digits = 2),
+         ucl = round(ucl, digits = 2)
+         ) %>%
+  rename("race" = "cat",
+         "total donors" = "n_total"
+         ) %>% 
+  as_gtsummary()
+```
+
+### Age 
+```{r, fig.mobile=TRUE , fig.width=7.5}
+htn_idlevel %>% 
+  freq_table(ages) %>%
+  freq_format( recipe = "percent (lcl- ucl)", name = "percent_95", digits = 2 ) %>%
+  select(cat, n, percent_95) %>% 
+  rename("Age" = "cat",
+         "donors" = "n",
+         "percent (95 CI)" = "percent_95"
+         ) %>% 
+  as_gtsummary()
+```
+
+### RUCA 
+```{r, fig.mobile=TRUE , fig.width=7.5}
+htn_idlevel %>% 
+  freq_table(ruca) %>% 
+  select(cat, n, n_total, percent, se) %>% 
+  mutate(percent = round(percent, digits = 2),
+         se = round(se, digits = 2)) %>%
+  rename("RUCA" = "cat",
+         "total donors" = "n_total"
+         ) %>% 
+  as_gtsummary()
+```
+
+
+### Stages 
+```{r, fig.mobile=TRUE , fig.width=7.5}
+htn_idlevel %>% 
+  freq_table(Stage) %>%
+  freq_format( recipe = "percent (lcl- ucl)", name = "percent_95", digits = 2 ) %>%
+  select(cat, n, percent_95) %>% 
+  rename("Stage" = "cat",
+         "donors" = "n",
+         "percent (95 CI)" = "percent_95"
+         ) %>% 
+  as_gtsummary()
+```
+
+
+### RUCA & Stages 
+```{r, fig.mobile=TRUE , fig.width=7.5}
+htn_idlevel %>% 
+  freq_table(ruca, HBP) %>%
+  freq_format( recipe = "percent_row (lcl_row - ucl_row)", name = "percent (95 CL)", digits = 2 ) %>%
+  select(row_cat, col_cat, n, `percent (95 CL)`) %>% 
+  rename(
+    "RUCA" = "row_cat",
+    "HBP" = "col_cat",
+    "donors" = "n"
+         ) %>% 
+  as_gtsummary() %>% as_gt() %>%
+      tab_style(
+        style = list(cell_fill(color = "lightblue")),
+        locations = cells_body(rows = c(1,2,3,4,9,10)) # Colors rows 1 and 3
+      ) 
+      # tab_style(
+      #   style = list(cell_fill(color = "gray")),
+      #   locations = cells_body(rows = Stage == "stage 2") # Colors rows where 'variable' column is "age"
+      # )
+```
+
+
+### Age & Stages 
+```{r, fig.mobile=TRUE , fig.width=7.5}
+htn_idlevel %>% 
+  freq_table(ages, Stage) %>%
+  freq_format( recipe = "percent_row (lcl_row - ucl_row)", name = "percent (95 CL)", digits = 2 ) %>%
+  select(row_cat, col_cat, n, `percent (95 CL)`) %>% 
+  rename(
+    "Age" = "row_cat",
+    "Stage" = "col_cat",
+    "donors" = "n"
+         ) %>% 
+  as_gtsummary() %>% as_gt() %>%
+      tab_style(
+        style = list(cell_fill(color = "lightblue")),
+        locations = cells_body(rows = c(1,2,3,4)) # Colors rows 1 and 3
+      ) 
+      # tab_style(
+      #   style = list(cell_fill(color = "gray")),
+      #   locations = cells_body(rows = Stage == "stage 2") # Colors rows where 'variable' column is "age"
+      # )
+```
+
+
+### Age & HBP 
+```{r, fig.mobile=TRUE , fig.width=7.5}
+htn_idlevel %>% 
+  freq_table(ages, HBP) %>%
+  freq_format( recipe = "percent_row (lcl_row - ucl_row)", name = "percent (95 CL)", digits = 2 ) %>%
+  select(row_cat, col_cat, n, `percent (95 CL)`) %>% 
+  rename(
+    "Age" = "row_cat",
+    "HBP" = "col_cat",
+    "donors" = "n"
+         ) %>% 
+  as_gtsummary() %>% as_gt() %>%
+      tab_style(
+        style = list(cell_fill(color = "lightblue")),
+        locations = cells_body(rows = c(1,2,3,4)) # Colors rows 1 and 3
+      ) 
+      # tab_style(
+      #   style = list(cell_fill(color = "gray")),
+      #   locations = cells_body(rows = Stage == "stage 2") # Colors rows where 'variable' column is "age"
+      # )
+```
+
+
+### Gender & Stages 
+```{r, fig.mobile=TRUE , fig.width=7.5}
+htn_idlevel %>% 
+  freq_table(gender, HBP) %>%
+  freq_format( recipe = "percent_row (lcl_row - ucl_row)", name = "percent (95 CL)", digits = 2 ) %>%
+  select(row_cat, col_cat, n, `percent (95 CL)`) %>% 
+  rename(
+    "Gender" = "row_cat",
+    "HBP" = "col_cat",
+    "donors" = "n"
+         ) %>% 
+  as_gtsummary() %>% as_gt() %>%
+      tab_style(
+        style = list(cell_fill(color = "lightblue")),
+        locations = cells_body(rows = c(2,4)) # Colors rows 1 and 3
+      ) 
+      # tab_style(
+      #   style = list(cell_fill(color = "gray")),
+      #   locations = cells_body(rows = Stage == "stage 2") # Colors rows where 'variable' column is "age"
+      # )
+```
+
+
+### Race & Stages 
+```{r, fig.mobile=TRUE , fig.width=7.5}
+htn_idlevel %>% 
+  freq_table(race, HBP) %>%
+  freq_format( recipe = "percent_row (lcl_row - ucl_row)", name = "percent (95 CL)", digits = 2 ) %>%
+  select(row_cat, col_cat, n, `percent (95 CL)`) %>% 
+  rename(
+    "Race" = "row_cat",
+    "HBP" = "col_cat",
+    "donors" = "n"
+         ) %>% 
+  as_gtsummary() %>% as_gt() %>%
+      tab_style(
+        style = list(cell_fill(color = "lightblue")),
+        locations = cells_body(rows = c(2,4,6)) # Colors rows 1 and 3
+      ) 
+      # tab_style(
+      #   style = list(cell_fill(color = "gray")),
+      #   locations = cells_body(rows = Stage == "stage 2") # Colors rows where 'variable' column is "age"
+      # )
+```
+
+
